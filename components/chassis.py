@@ -27,10 +27,10 @@ class Chassis:
     def setup(self):
         self.modules = [self.module_a, self.module_b, self.module_c, self.module_d]
 
-        modules_alpha = np.array([module.alpha for module in self.modules])
-        modules_l = np.array([module.l for module in self.modules]).reshape(-1)
-        modules_b = np.array([module.b for module in self.modules]).reshape(-1)
-        modules_radius = np.array([module.WHEEL_RADIUS for module in self.modules]).reshape(-1)
+        modules_alpha = np.array([[module.alpha] for module in self.modules])
+        modules_l = np.array([[module.l] for module in self.modules])
+        modules_b = np.array([[module.b] for module in self.modules])
+        modules_radius = np.array([[module.WHEEL_RADIUS] for module in self.modules])
 
         self.controller = Controller(
             modules_alpha,
