@@ -1,6 +1,8 @@
 from swervedrive.icr import Controller
+from utilities.functions import constrain_angle
 from .module import SwerveModule
 import numpy as np
+import math
 
 
 class Chassis:
@@ -50,6 +52,13 @@ class Chassis:
         modules_angular_velocity = np.array(
             [module.get_drive_angular_velocity() for module in self.modules]
         ).reshape(-1,1)
+
+        flip_signs = np.greater(np.abs(modules_beta), math.pi/2).reshape(-1)
+        for i, flip in enumerate(flip_signs):
+            if flip:
+                modules_beta[i,0] = constrain_angle(modules_beta[i] + math.pi)
+                modules_angular_velocity[i,0] *= -1
+
         # TODO controller mapping\
         lmda_d, mu_d = self.twist_to_icr(self.vx, self.vy, self.vz)
 
