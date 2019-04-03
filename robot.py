@@ -19,6 +19,7 @@ from components.cargo import CargoManipulator
 from components.hatch import Hatch
 from components.vision import Vision
 from components.climb import Climber
+from components.colour_sensor import ColourSensor# , ColourSerialSimulator
 from pyswervedrive.chassis import SwerveChassis
 from pyswervedrive.module import SwerveModule
 from utilities.functions import constrain_angle, rescale_js
@@ -54,6 +55,8 @@ class Robot(magicbot.MagicRobot):
     cargo_component: CargoManipulator
     chassis: SwerveChassis
     hatch: Hatch
+
+    colour_sensor: ColourSensor
 
     climber: Climber
 
@@ -119,6 +122,17 @@ class Robot(magicbot.MagicRobot):
         self.intake_switch = wpilib.DigitalInput(0)
         self.arm_motor = rev.CANSparkMax(2, rev.MotorType.kBrushless)
 
+        try:
+            self.arduino_port = wpilib.SerialPort(
+                baudRate=9600,
+                port=wpilib.SerialPort.Port.kUSB,
+                parity=wpilib.SerialPort.Parity.kNone,
+                stopBits=wpilib.SerialPort.StopBits.kOne,
+                # simPort=ColourSerialSimulator()
+            )
+        except:
+            self.logger.info("Warning: arduino not found on serial port kUSB")
+
         # boilerplate setup for the joystick
         self.joystick = wpilib.Joystick(0)
         self.gamepad = wpilib.XboxController(1)
@@ -137,6 +151,7 @@ class Robot(magicbot.MagicRobot):
     def disabledPeriodic(self):
         self.chassis.set_inputs(0, 0, 0)
         self.vision.execute()  # Keep the time offset calcs running
+        self.colour_sensor.execute()
 
     def teleopInit(self):
         """Initialise driver control."""
