@@ -47,9 +47,7 @@ class LineDetectorSensor:
 
     def split_packet(self, packet):
         if self.arduino_port is None:
-            print("WARNING: Arduino not attached to roboRIO")
             return
-        print('splitting packet')
         try:
             packet_split = [value for value in packet.split(self.value_separator)
                             if not value == ""]
@@ -58,30 +56,29 @@ class LineDetectorSensor:
                 float(reading)
                 for reading in packet_split
             ]
-            print(f'reading raw {reading}')
             if len(reading) == self.num_sensors:
                 return reading
         except ValueError:
             pass
-        print('returning none')
         return None
 
     def generate_positions(self):
         if self.readings is None:
             self.position_cargo = None
             self.position_hatch = None
-            print('No readings')
             return
-        self.position_hatch = (np.mean([
-            i
-            for i, reading in enumerate(self.readings[0:7])
-            if reading < self.readings_threshold])
-            - 3)
-        self.position_cargo = (np.mean([
-            i
-            for i, reading in enumerate(self.readings[7:14])
-            if reading < self.readings_threshold])
-            - 3)
+        indices_hatch = [i for i, reading in enumerate(self.readings[0:7])
+                         if reading < self.readings_threshold]
+        if indices_hatch:
+            self.position_hatch = np.mean(indices_hatch) - 3
+        else:
+            self.position_hatch = None
+        indices_cargo = [i for i, reading in enumerate(self.readings[7:14])
+                         if reading < self.readings_threshold]
+        if indices_cargo:
+            self.position_cargo = np.mean(indices_cargo) - 3
+        else:
+            self.position_cargo = None
 
     def execute(self):
         total_str = self.arduino_port.readString(count=self.read_char)
@@ -94,10 +91,9 @@ class LineDetectorSensor:
             if values is not None:
                 self.last_reading_time = time.monotonic()
                 self.readings = values
+                self.generate_positions()
                 break
         if (time.monotonic() - self.last_reading_time) > self.reading_timeout:
             self.readings = None
             self.position_cargo = None
             self.position_hatch = None
-
-        self.generate_positions()
