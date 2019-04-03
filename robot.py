@@ -7,6 +7,8 @@ import ctre
 import magicbot
 import wpilib
 
+import hal
+
 from automations.alignment import (
     HatchIntakeAligner,
     HatchDepositAligner,
@@ -19,7 +21,7 @@ from components.cargo import CargoManipulator
 from components.hatch import Hatch
 from components.vision import Vision
 from components.climb import Climber
-from components.colour_sensor import ColourSensor# , ColourSerialSimulator
+from components.line_detector import LineDetectorSensor
 from pyswervedrive.chassis import SwerveChassis
 from pyswervedrive.module import SwerveModule
 from utilities.functions import constrain_angle, rescale_js
@@ -56,7 +58,7 @@ class Robot(magicbot.MagicRobot):
     chassis: SwerveChassis
     hatch: Hatch
 
-    colour_sensor: ColourSensor
+    line_detector: LineDetectorSensor
     arduino_port: wpilib.SerialPort
 
     climber: Climber
@@ -123,17 +125,26 @@ class Robot(magicbot.MagicRobot):
         self.intake_switch = wpilib.DigitalInput(0)
         self.arm_motor = rev.CANSparkMax(2, rev.MotorType.kBrushless)
 
-        try:
+        if not hal.isSimulation():
+            try:
+                self.arduino_port = wpilib.SerialPort(
+                    baudRate=LineDetectorSensor.baud_rate,
+                    port=wpilib.SerialPort.Port.kUSB,
+                    parity=wpilib.SerialPort.Parity.kNone,
+                    stopBits=wpilib.SerialPort.StopBits.kOne,
+                )
+            except:
+                self.arduino_port = None
+                self.logger.info("Warning: arduino not found on serial port kUSB")
+        else:
+            from components.line_detector import LineDetectorSerialSimulator
             self.arduino_port = wpilib.SerialPort(
-                baudRate=ColourSensor.baud_rate,
+                baudRate=LineDetectorSensor.baud_rate,
                 port=wpilib.SerialPort.Port.kUSB,
                 parity=wpilib.SerialPort.Parity.kNone,
                 stopBits=wpilib.SerialPort.StopBits.kOne,
-                # simPort=ColourSerialSimulator()
+                simPort=LineDetectorSerialSimulator()
             )
-        except:
-            self.arduino_port = None
-            self.logger.info("Warning: arduino not found on serial port kUSB")
 
         # boilerplate setup for the joystick
         self.joystick = wpilib.Joystick(0)
@@ -153,7 +164,7 @@ class Robot(magicbot.MagicRobot):
     def disabledPeriodic(self):
         self.chassis.set_inputs(0, 0, 0)
         self.vision.execute()  # Keep the time offset calcs running
-        self.colour_sensor.execute()
+        self.line_detector.execute()
 
     def teleopInit(self):
         """Initialise driver control."""
