@@ -57,6 +57,7 @@ class Robot(magicbot.MagicRobot):
     hatch: Hatch
 
     colour_sensor: ColourSensor
+    arduino_port: wpilib.SerialPort
 
     climber: Climber
 
@@ -124,13 +125,14 @@ class Robot(magicbot.MagicRobot):
 
         try:
             self.arduino_port = wpilib.SerialPort(
-                baudRate=9600,
+                baudRate=ColourSensor.baud_rate,
                 port=wpilib.SerialPort.Port.kUSB,
                 parity=wpilib.SerialPort.Parity.kNone,
                 stopBits=wpilib.SerialPort.StopBits.kOne,
                 # simPort=ColourSerialSimulator()
             )
         except:
+            self.arduino_port = None
             self.logger.info("Warning: arduino not found on serial port kUSB")
 
         # boilerplate setup for the joystick
