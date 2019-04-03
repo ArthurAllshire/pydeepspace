@@ -74,20 +74,14 @@ class LineDetectorSensor:
             return
         self.position_hatch = (np.mean([
             i
-            for i, reading in enumerate(self.readings[11:14])
-            if reading > self.threshold])
-            - 1)
-        # self.position_hatch = (np.mean([
-        #     i
-        #     for i, reading in enumerate(self.readings[0:7])
-        #     if reading > self.threshold])
-        #     - 3)
+            for i, reading in enumerate(self.readings[0:7])
+            if reading < self.readings_threshold])
+            - 3)
         self.position_cargo = (np.mean([
             i
             for i, reading in enumerate(self.readings[7:14])
-            if reading > self.threshold])
+            if reading < self.readings_threshold])
             - 3)
-        print(f'Position Cargo {self.position_cargo}\nPosition Hatch {self.position_hatch}')
 
     def execute(self):
         total_str = self.arduino_port.readString(count=self.read_char)
