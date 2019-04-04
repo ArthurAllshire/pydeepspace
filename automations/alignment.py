@@ -35,7 +35,7 @@ class Aligner(StateMachine):
 
     alignment_speed = tunable(0.5)  # m/s changed in teleop and autonomous
     alignment_kp_y = tunable(1.5)
-    alignment_tape_kp = tunable(1)
+    alignment_kp_tape = tunable(1)
     tape_align_speed = tunable(1)
     tape_forward_speed = tunable(1)
     # lookahead_factor = tunable(4)
@@ -90,6 +90,9 @@ class Aligner(StateMachine):
         fiducial_x, fiducial_y, delta_heading = self.vision.get_fiducial_position()
 
         if tape_offset is not None:
+            if self.tape_counter < 1:
+                self.logger.info("Seen tape")
+                self.tape_counter += 1
             vy_tape = self.alignment_kp_tape * self.tape_offset
         else:
             vy_tape = 0
