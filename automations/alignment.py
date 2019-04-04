@@ -1,11 +1,11 @@
 from magicbot import tunable
 from magicbot.state_machine import StateMachine, state
 
-from automations.cargo import CargoManager
+from automations.cargo import CargoManager, CargoManipulator
 from automations.hatch import HatchAutomation
 from components.vision import Vision
+from components.line_detector import LineDetectorSensor
 from pyswervedrive.chassis import SwerveChassis
-
 from utilities.functions import rotate_vector
 
 
@@ -22,6 +22,8 @@ class Aligner(StateMachine):
 
     chassis: SwerveChassis
     vision: Vision
+    line_detector: LineDetectorSensor
+    cargo: CargoManager
 
     def setup(self):
         self.successful = False
@@ -31,6 +33,8 @@ class Aligner(StateMachine):
 
     alignment_speed = tunable(0.5)  # m/s changed in teleop and autonomous
     alignment_kp_y = tunable(1.5)
+    tape_align_speed = tunable(1)
+    tape_forward_speed = tunable(1)
     # lookahead_factor = tunable(4)
 
     def on_disable(self):
@@ -58,6 +62,7 @@ class Aligner(StateMachine):
             self.chassis.automation_running = True
             self.counter = 0
             self.last_range = 2.5
+            self.dist = None
             # self.v = 0
         # self.u = self.chassis.speed
         # if abs(self.v - self.alignment_speed) > self.tolerance:
@@ -66,8 +71,30 @@ class Aligner(StateMachine):
         #     if self.v < self.u:
         #         a = self.chassis.acceleration
         #     self.v = self.u + a * state_tm
+
+        if self.cargo.cargo_component.is_contained():
+            tape_offset = self.line_detector.position_cargo
+            if tape_offset != None:
+                tape_offset *= -1
+        else:
+            tape_offset = self.line_detector.position_hatch
         fiducial_x, fiducial_y, delta_heading = self.vision.get_fiducial_position()
-        if not self.vision.fiducial_in_sight or abs(fiducial_x) > abs(self.last_range):
+        if not (tape_offset == None):
+            if 0.1 > tape_offset > -0.1:
+                if self.dist == None:
+                    self.dist = 0.45
+                self.chassis.set_inputs(
+                    0, tape_offset * self.tape_align_speed, 0, field_oriented=False
+                )
+            elif self.dist < 0.05:
+                self.chassis.set_inputs(0, 0, 0)
+                self.next_state("success")
+            else:
+                self.chassis.set_inputs(
+                    self.tape_forward_speed, 0, 0, field_oriented=False
+                )
+                self.dist -= 0.02
+        elif not self.vision.fiducial_in_sight or abs(fiducial_x) > abs(self.last_range):
             # self.chassis.set_inputs(0, 0, 0)
             # self.next_state("success")
             self.chassis.set_inputs(
