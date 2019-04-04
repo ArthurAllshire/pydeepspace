@@ -6,6 +6,8 @@ import navx
 class NavX:
     """Wrapper around RobotPy NavX to match our coordinate system."""
 
+    g = 9.80665
+
     def __init__(self):
         self.ahrs = navx.AHRS.create_spi(update_rate_hz=50)
 
@@ -32,6 +34,11 @@ class NavX:
         """
         raw = self.ahrs.getPitch()
         return -math.radians(raw)
+
+    def getAccelX(self) -> float:
+        """Get linear acceleration in the X direction (m/s^2)
+        """
+        return -self.ahrs.getRawAccelY()*self.g
 
     def resetHeading(self):
         """Zero the yaw."""

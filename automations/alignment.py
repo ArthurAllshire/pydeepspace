@@ -6,6 +6,7 @@ from automations.hatch import HatchAutomation
 from components.vision import Vision
 from components.line_detector import LineDetectorSensor
 from pyswervedrive.chassis import SwerveChassis
+from utilities.navx import NavX
 from utilities.functions import rotate_vector
 
 
@@ -24,6 +25,7 @@ class Aligner(StateMachine):
     vision: Vision
     line_detector: LineDetectorSensor
     cargo: CargoManager
+    imu: NavX
 
     def setup(self):
         self.successful = False
@@ -33,6 +35,7 @@ class Aligner(StateMachine):
 
     alignment_speed = tunable(0.5)  # m/s changed in teleop and autonomous
     alignment_kp_y = tunable(1.5)
+    alignment_tape_kp = tunable(1)
     tape_align_speed = tunable(1)
     tape_forward_speed = tunable(1)
     # lookahead_factor = tunable(4)
@@ -45,7 +48,12 @@ class Aligner(StateMachine):
 
     @state(first=True)
     def wait_for_vision(self):
-        if self.vision.fiducial_in_sight:
+        if self.cargo.cargo_component.is_contained():
+            tape_offset = self.line_detector.position_cargo
+        else:
+            tape_offset = self.line_detector.position_hatch
+
+        if self.vision.fiducial_in_sight or tape_offset is not None:
             self.next_state("target_tape_align")
 
     @state(must_finish=True)
@@ -60,9 +68,11 @@ class Aligner(StateMachine):
             self.successful = False
             self.last_vision = state_tm
             self.chassis.automation_running = True
-            self.counter = 0
+            self.vision_counter = 0
+            self.tape_counter = 0
             self.last_range = 2.5
             self.dist = None
+            self.accel_profile = []
             # self.v = 0
         # self.u = self.chassis.speed
         # if abs(self.v - self.alignment_speed) > self.tolerance:
@@ -71,42 +81,32 @@ class Aligner(StateMachine):
         #     if self.v < self.u:
         #         a = self.chassis.acceleration
         #     self.v = self.u + a * state_tm
+        self.accel_profile.append(self.imu.getAccelX())
 
         if self.cargo.cargo_component.is_contained():
             tape_offset = self.line_detector.position_cargo
-            if tape_offset != None:
-                tape_offset *= -1
         else:
             tape_offset = self.line_detector.position_hatch
         fiducial_x, fiducial_y, delta_heading = self.vision.get_fiducial_position()
-        if not (tape_offset == None):
-            if 0.1 > tape_offset > -0.1:
-                if self.dist == None:
-                    self.dist = 0.45
-                self.chassis.set_inputs(
-                    0, tape_offset * self.tape_align_speed, 0, field_oriented=False
-                )
-            elif self.dist < 0.05:
-                self.chassis.set_inputs(0, 0, 0)
-                self.next_state("success")
-            else:
-                self.chassis.set_inputs(
-                    self.tape_forward_speed, 0, 0, field_oriented=False
-                )
-                self.dist -= 0.02
-        elif not self.vision.fiducial_in_sight or abs(fiducial_x) > abs(self.last_range):
+
+        if tape_offset is not None:
+            vy_tape = self.alignment_kp_tape * self.tape_offset
+        else:
+            vy_tape = 0
+
+        if not self.vision.fiducial_in_sight or abs(fiducial_x) > abs(self.last_range):
             # self.chassis.set_inputs(0, 0, 0)
             # self.next_state("success")
             self.chassis.set_inputs(
-                self.alignment_speed * self.direction, 0, 0, field_oriented=False
+                self.alignment_speed * self.direction, vy_tape, 0, field_oriented=False
             )
             if state_tm - self.last_vision > self.last_range / self.alignment_speed:
                 self.chassis.set_inputs(0, 0, 0)
                 self.next_state("success")
         else:
-            if self.counter < 1:
+            if self.vision_counter < 1:
                 self.logger.info("Seen vision")
-                self.counter += 1
+                self.vision_counter += 1
             self.last_vision = state_tm
             self.last_range = fiducial_x
             # fiducial_x /= self.lookahead_factor
@@ -119,14 +119,20 @@ class Aligner(StateMachine):
             else:
                 # Target behind us means we are using the cargo camera - move backwards
                 vx = -self.alignment_speed * (1 - min(abs(fiducial_y), 1.5) / 1.5)
-            vy = self.alignment_speed * max(
-                min(fiducial_y * self.alignment_kp_y, 1), -1
-            )
+
+            if tape_offset is not None:
+                vy = vy_tape
+            else:
+                vy = self.alignment_speed * max(
+                    min(fiducial_y * self.alignment_kp_y, 1), -1
+                )
+
             vx, vy = rotate_vector(vx, vy, -delta_heading)
             self.chassis.set_inputs(vx, vy, 0, field_oriented=False)
 
     @state(must_finish=True)
     def success(self):
+        self.logger.info(f"Accel profile {self.accel_profile}")
         self.done()
 
     def done(self):

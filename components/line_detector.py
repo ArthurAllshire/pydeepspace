@@ -70,13 +70,13 @@ class LineDetectorSensor:
         indices_hatch = [i for i, reading in enumerate(self.readings[0:7])
                          if reading < self.readings_threshold]
         if indices_hatch:
-            self.position_hatch = np.mean(indices_hatch) - 3
+            self.position_hatch = -(np.mean(indices_hatch) - 3)
         else:
             self.position_hatch = None
         indices_cargo = [i for i, reading in enumerate(self.readings[7:14])
                          if reading < self.readings_threshold]
         if indices_cargo:
-            self.position_cargo = np.mean(indices_cargo) - 3
+            self.position_cargo = -(np.mean(indices_cargo) - 3)
         else:
             self.position_cargo = None
 
