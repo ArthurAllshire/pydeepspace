@@ -9,6 +9,8 @@ from pyswervedrive.chassis import SwerveChassis
 from utilities.navx import NavX
 from utilities.functions import rotate_vector
 
+import numpy as np
+
 
 class Aligner(StateMachine):
     """
@@ -35,7 +37,7 @@ class Aligner(StateMachine):
 
     alignment_speed = tunable(0.5)  # m/s changed in teleop and autonomous
     alignment_kp_y = tunable(1.5)
-    alignment_kp_tape = tunable(1)
+    alignment_kp_tape = tunable(0.1)
     tape_align_speed = tunable(1)
     tape_forward_speed = tunable(1)
     # lookahead_factor = tunable(4)
@@ -93,15 +95,17 @@ class Aligner(StateMachine):
             if self.tape_counter < 1:
                 self.logger.info("Seen tape")
                 self.tape_counter += 1
-            vy_tape = self.alignment_kp_tape * self.tape_offset
-        else:
-            vy_tape = 0
-
-        if not self.vision.fiducial_in_sight or abs(fiducial_x) > abs(self.last_range):
+            vy_tape = self.alignment_kp_tape * tape_offset
+            self.chassis.set_inputs(
+                0.5, vy_tape, 0, field_oriented=False
+            )
+            if state_tm > 2.5:
+                self.next_state("roll_forward")
+        elif not self.vision.fiducial_in_sight or abs(fiducial_x) > abs(self.last_range):
             # self.chassis.set_inputs(0, 0, 0)
             # self.next_state("success")
             self.chassis.set_inputs(
-                self.alignment_speed * self.direction, vy_tape, 0, field_oriented=False
+                self.alignment_speed * self.direction, 0, 0, field_oriented=False
             )
             if state_tm - self.last_vision > self.last_range / self.alignment_speed:
                 self.chassis.set_inputs(0, 0, 0)
@@ -132,6 +136,18 @@ class Aligner(StateMachine):
 
             vx, vy = rotate_vector(vx, vy, -delta_heading)
             self.chassis.set_inputs(vx, vy, 0, field_oriented=False)
+
+    @state(must_finish=True)
+    def roll_forward(self, initial_call, state_tm):
+        if initial_call:
+            self.start_odom = self.chassis.position_arr
+        self.chassis.set_inputs(
+            0.5, 0, 0, field_oriented=False
+        )
+        self.accel_profile.append(self.imu.getAccelX())
+        # if np.linalg.norm(self.chassis.position_arr - self.start_odom) > 1: # meters
+        if state_tm > 2:
+            self.next_state('success')
 
     @state(must_finish=True)
     def success(self):

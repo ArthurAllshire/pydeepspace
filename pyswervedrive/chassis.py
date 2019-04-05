@@ -282,6 +282,10 @@ class SwerveChassis:
         return oriented_vx, oriented_vy
 
     @property
+    def position_arr(self):
+        return [self.odometry_x, self.odometry_y]
+
+    @property
     def position(self):
         return self.odometry_x, self.odometry_y
 
