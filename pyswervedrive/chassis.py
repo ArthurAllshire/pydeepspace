@@ -294,6 +294,10 @@ class SwerveChassis:
         return math.hypot(self.odometry_x_vel, self.odometry_y_vel)
 
     @property
+    def command_speed(self):
+        return math.hypot(self.vx, self.vy)
+
+    @property
     def all_aligned(self):
         return all(module.aligned for module in self.modules)
 

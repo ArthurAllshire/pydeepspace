@@ -40,6 +40,8 @@ class Aligner(StateMachine):
     alignment_kp_tape = tunable(0.1)
     tape_align_speed = tunable(1)
     tape_forward_speed = tunable(1)
+    hit_wall_accel_thresh = tunable(-1)
+    odometry_command_comparison_factor = tunable(0.5)
     # lookahead_factor = tunable(4)
 
     def on_disable(self):
@@ -85,6 +87,11 @@ class Aligner(StateMachine):
         #     self.v = self.u + a * state_tm
         self.accel_profile.append(self.imu.getAccelX())
 
+        if self.chassis.command_speed * self.odometry_command_comparison_factor > self.chassis.speed \
+                and state_tm > 0.5:
+            self.logger.info("Odometry vs command speed difference high - assuming wheels stalled")
+            self.next_state("success")
+
         if self.cargo.cargo_component.is_contained():
             tape_offset = self.line_detector.position_cargo
         else:
@@ -99,8 +106,8 @@ class Aligner(StateMachine):
             self.chassis.set_inputs(
                 0.5, vy_tape, 0, field_oriented=False
             )
-            if state_tm > 2.5:
-                self.next_state("roll_forward")
+            if state_tm > 2.5 or self.imu.getAccelX() < self.hit_wall_accel_threshold:
+                self.next_state("success")
         elif not self.vision.fiducial_in_sight or abs(fiducial_x) > abs(self.last_range):
             # self.chassis.set_inputs(0, 0, 0)
             # self.next_state("success")
@@ -136,18 +143,6 @@ class Aligner(StateMachine):
 
             vx, vy = rotate_vector(vx, vy, -delta_heading)
             self.chassis.set_inputs(vx, vy, 0, field_oriented=False)
-
-    @state(must_finish=True)
-    def roll_forward(self, initial_call, state_tm):
-        if initial_call:
-            self.start_odom = self.chassis.position_arr
-        self.chassis.set_inputs(
-            0.5, 0, 0, field_oriented=False
-        )
-        self.accel_profile.append(self.imu.getAccelX())
-        # if np.linalg.norm(self.chassis.position_arr - self.start_odom) > 1: # meters
-        if state_tm > 2:
-            self.next_state('success')
 
     @state(must_finish=True)
     def success(self):
