@@ -38,6 +38,23 @@ class LineDetectorSensor:
     packet_separator = '\n'
     value_separator = ','
 
+    thresholds = [
+        13591.86154364678,
+        13514.131378496799,
+        27851.95,
+        14788.048466464443,
+        11463.919346140883,
+        9021.022783956858,
+        12395.772025615099,
+        27851.95,
+        10199.274620829121,
+        14536.858139534885,
+        7042.410144927537,
+        14267.77627232895,
+        7394.192686215032,
+        8371.55631951466,
+    ]
+
     def __init__(self):
         self.readings = None
         self.last_reading_time = 0
@@ -63,18 +80,19 @@ class LineDetectorSensor:
         return None
 
     def generate_positions(self):
+
         if self.readings is None:
             self.position_cargo = None
             self.position_hatch = None
             return
         indices_hatch = [i for i, reading in enumerate(self.readings[0:7])
-                         if reading < self.readings_threshold]
+                         if reading < self.thresholds[i]]
         if indices_hatch:
-            self.position_hatch = -(np.mean(indices_hatch) - 3)
+            self.position_hatch = (np.mean(indices_hatch) - 3)
         else:
             self.position_hatch = None
         indices_cargo = [i for i, reading in enumerate(self.readings[7:14])
-                         if reading < self.readings_threshold]
+                         if reading < self.thresholds[i+7]]
         if indices_cargo:
             self.position_cargo = -(np.mean(indices_cargo) - 3)
         else:
